@@ -17,16 +17,18 @@ class SeparateUniverseGrowthResponse(object) :
 		'''
 		self.cls = cls
 		self.quiet = quiet
-		if  not 'vTk' in self.cls.pars['output'] and not 'vTk' in self.cls.pars['output'] :
+		if 'gauge' in cls.pars and ('new' in cls.pars['gauge'] or 'New' in cls.pars['gauge']) :
+			raise Exception('Error: SeparateUniverseGrowthResponse instance of classy.Class must be computed in the synchronous gause')
+		if  not 'vTk' in self.cls.pars['output'] or not ('mTk' in self.cls.pars['output'] or 'dTk' in self.cls.pars['output']) :
 			raise Exception('Error: SeparateUniverseGrowthResponse instance of classy.Class \'output\' must contain \'mTk\' and \'vTk\'')
 		if self.cls.pars['extra_metric_transfer_functions'] != 'yes' :
 			raise Exception('Error: SeparateUniverseGrowthResponse instance of classy.Class must have \'extra_metric_transfer_functions\':\'yes\'')
-		if 'z_max_pk' in self.cls.pars :
-			z_max_1 = self.cls.pars['z_max_pk']
-			if 'z_pk' in self.cls.pars :
-				self.z_max = np.max(np.max(self.cls.pars['z_pk']), z_max_1)
-		elif 'z_pk' in self.cls.pars :
-				self.z_max = np.max(self.cls.pars['z_pk'])
+		if 'z_pk' in self.cls.pars :
+			self.z_max = np.max([float(tz) for tz in str( self.cls.pars['z_pk']).split(',')])
+			if 'z_max_pk' in self.cls.pars :
+				self.z_max = np.max([float(self.cls.pars['z_max_pk']), self.z_max])
+		elif 'z_max_pk' in self.cls.pars :
+				self.z_max = float(self.cls.pars['z_max_pk'])
 		else :
 			raise Exception('Error: SeparateUniverseGrowthResponse instance of classy.Class must have \'z_pk\' or \'z_max_pk\'')
 		if self.cls.get_transfer() == {} :
@@ -78,14 +80,16 @@ class SeparateUniverseGrowthResponse(object) :
 		d_delta_b_d_loga =  -3. * (c2_b - w_b) * delta_b  + (1. + w_b) * (tf['t_b'][k_ind] * (1. + z) / H + d_delta_cdm_d_loga)
 		return self.fc * delta_cdm + self.fb * delta_b, self.fc * d_delta_cdm_d_loga + self.fb * d_delta_b_d_loga
 
-	def getGrowthResponse(self, k_ind, logai = -12, dloga = 1.e-2) :
+	def getGrowthResponse(self, k_ind, logai = None, dloga = 1.e-2, nstep = 100, rtol = 1.e-3, atol = 1.e-10) :
 		'''
 		Numerically integrates the second order ODE for the time evolution of the separate universe
 		growth response sourced by a linear CDM+baryon mode with wave length self.cls.get_transfer(z)['k (h/Mpc)'][k_ind].
 		Initial conditions are set during radition domination, so loga should not be set too late or the numerical
 		solution with have a transcient contribution. 
 		'''
-		if self.zeq > 1. / np.exp(logai) - 1. and not self.quiet :
+		if logai == None :
+			logai = -np.log(self.z_max + 1.)
+		elif self.zeq > 1. / np.exp(logai) - 1. and not self.quiet :
 			 warnings.warn('SeparateUniverseGrowthResponse.getGrowthResponse initial time logai not early enough for radiation dominated era initial conditions')
 		if self.z_max < 1. / np.exp(logai) - 1. :
 			raise Exception('Error: SeparateUniverseGrowthResponse.getGrowthResponse initial time too early')
@@ -109,7 +113,7 @@ class SeparateUniverseGrowthResponse(object) :
 		# Set up integrator and integrate over log(a)
 		#
 		growth_response_ode = ode(getGrowthResponseDEQs)
-		growth_response_ode.set_integrator('lsoda', nsteps = 100, rtol = 1.e-3, atol = 1.e-10)
+		growth_response_ode.set_integrator('lsoda', nsteps = nstep, rtol = rtol, atol = atol)
 		growth_response_ode.set_initial_value([Ri, dRi], logai)
 		logas = [logai]
 		Rs = [Ri]
